@@ -12,20 +12,22 @@ import os
 import shutil
 import collections
 import numpy as np
+from openpyxl import *
 
 
-date = input('What is the date of the experiment? Uses dashes to separate the year, month, and date. Format: YYYY MM DD') 
+date = input('What is the date of the experiment? Uses spaces to separate the year, month, and date. Format: YYYY MM DD') 
 
 start_time = input('What is the time stamp of the first image? Please use the format HH MM SS MSS and separate each entry with a space.')
 
 R = input('What is the R value? (Radiation load)')
+
 
 date = date.split()
 year=date[0]
 month=date[1]
 day=date[2]
 
-Main_Directory = 'C:\\Users\\Joshua Hibbard\\Box\\Josh data\\Data\\' + year + '-' + month + '-' + day
+Main_Directory = 'C:\\Users\\Joshua Hibbard\\Box\\Josh data\\Red_Blue Light\\' + month + '-' + day + '-' + year[-2:]
 os.chdir(Main_Directory)
 
 
@@ -49,6 +51,7 @@ image_true_seconds=float(seconds)
 image_true_milliseconds=float(milliseconds)
 'Convert the true image time into minutes elapsed since midnight.'
 first_image_time = image_true_hours*60 + image_true_minutes + image_true_seconds/60 + image_true_milliseconds/60000
+
 
 list1 = os.listdir('OriginalTempImages')
 number_files = len(list1)
@@ -75,6 +78,9 @@ for filename in os.listdir('OriginalTempImages'):
     time_stamp1=time_stamp1[0]
     time_stamp1=float(time_stamp1)
     d[time_stamp1]=filename
+    
+'Create the FinalTempImages folder for output'
+os.makedirs(Main_Directory + '\\' + 'FinalTempImages')
 
 od = collections.OrderedDict(sorted(d.items()))
 
@@ -84,15 +90,15 @@ with open(year + '_' + month + '_' + day + '.csv', 'r') as gas_exchange_data, op
     data = csv.reader(gas_exchange_data, delimiter = ',', quotechar = '\n')
     
     while True:
-        ged_row = next(data)
-        time_stamp=float(ged_row[time_stamp_column])
+        get_row = next(data)
+        time_stamp=float(get_row[time_stamp_column])
         if time_stamp <= thermal_image_time_list[thermal_image_index] + 0.3 and time_stamp >= thermal_image_time_list[thermal_image_index] - 0.3:
             
-            lbt=float(ged_row[lower_before_thermo_column])
-            lat=float(ged_row[lower_after_thermo_column])
-            ubt=float(ged_row[upper_before_thermo_column])
-            uat=float(ged_row[upper_after_thermo_column])
-            xout2=float(ged_row[xout2_column])
+            lbt=float(get_row[lower_before_thermo_column])
+            lat=float(get_row[lower_after_thermo_column])
+            ubt=float(get_row[upper_before_thermo_column])
+            uat=float(get_row[upper_after_thermo_column])
+            xout2=float(get_row[xout2_column])
             
             data_extraction[time_stamp] = [ubt, uat, lbt, lat, xout2]
         
@@ -124,13 +130,27 @@ with open(year + '_' + month + '_' + day + '.csv', 'r') as gas_exchange_data, op
 
 
 
+'Crops the images to include only the leaf.'
+for filename in os.listdir(Main_Directory + 'FinalTempImages'):
+    print(filename)
+    with open(filename,'r', encoding='utf-8-sig') as T_ecsvfile, open('Leaf Temperature ' + filename, 'w', newline = '') as LTFinal:
+        in_file = csv.reader(T_ecsvfile)
+        out_file = csv.writer(LTFinal)
+        for row_number, row in enumerate(in_file):
+            if row_number > 80 and row_number < 414:
+                print(row_number)
+                out_file.writerow(row[174:568])
+
+workbook = load_workbook(Main_Directory + 'Graph Analysis.xlsx')
+ws = workbook.create_sheet(''.join(date))
 
 
 
 
 
 
-
+pixel_list = input('What are the Excel Coordinates you would like to analyze? Separate each coordinate with a space.')
+pixel_list = pixel_list.split()
 
 
 
@@ -146,8 +166,8 @@ R=float(R)
 def g_s(K_matrix,T_a,T_e):
     return (R + K_matrix*(T_a-T_e))/(L_w*(w_0*np.exp(-T_w/(T_e+273)) - w_a))
 "Calculate Air Temperature."
-def T_a(rowindex):
-    return ((after_average-before_average)/(rowlength-1))*rowindex + before_average
+def T_a(columnindex):
+    return ((after_average-before_average)/(rowlength-1))*columnindex + before_average
 
 
 
@@ -162,21 +182,34 @@ for filename in os.listdir('FinalTempImages'):
     after_average = (uat+lat)/2
     "Find water mole fraction from data extraction."
     w_a = data_extraction[filename][4]
-    with open('C:\\Users\\Joshua Hibbard\\Box\\Josh data\\KMatrix\\KMatrix_23C_1Amp.csv','r') as K_matrixcsvfile, open(filename,'r', encoding='utf-8-sig') as T_ecsvfile, open(year + '_' + month +'_' + day + '_' + 'Conductance' + filename + '.csv','w') as outputfile:
+    with open('C:\\Users\\Joshua Hibbard\\Box\\Josh data\\KMatrix\\KMatrix_23C_1Amp.csv','r') as K_matrixcsvfile, open('Leaf Temperature ' + filename,'r', encoding='utf-8-sig') as T_ecsvfile, open(year + '_' + month +'_' + day + '_' + 'Conductance' + filename + '.csv','w') as outputfile:
         K_matrix = csv.reader(K_matrixcsvfile, delimiter = ',', quotechar='\n')
         T_e = csv.reader(T_ecsvfile, delimiter = ',', quotechar='\n')
         while True:
             K_matrixrow=next(K_matrix)
             T_erow=next(T_e)
             rowlength=len(T_erow)
-            rowindex=0
-            while rowindex < rowlength:
-                K_matrixvalue = float(K_matrixrow[rowindex])
-                T_avalue = float(T_a(rowindex))
-                T_evalue = float(T_erow[rowindex])
+            columnindex=0
+            while columnindex < rowlength:
+                K_matrixvalue = float(K_matrixrow[columnindex])
+                T_avalue = float(T_a(columnindex))
+                T_evalue = float(T_erow[columnindex])
                 conductance = g_s(K_matrixvalue,T_avalue,T_evalue)
                 outputfile.write(str(conductance))
-                rowindex+=1
-                if rowindex < rowlength:
+                columnindex+=1
+                if columnindex < rowlength:
                     outputfile.write(',')
             outputfile.write('\n')
+    with open(year + '_' + month +'_' + day + '_' + 'Conductance' + filename + '.csv','r') as Conductance, open('Leaf Temperature ' + filename,'r', encoding='utf-8-sig') as T_ecsvfile:
+        conductance_rows = list(csv.reader(Conductance))
+        T_e_rows = list(csv.reader(T_ecsvfile))
+        for pixel in pixel_list():
+            #Pixel function that turns the Excel values into coordinates based on row and column number
+            
+
+                
+            
+            
+            
+            
+            
