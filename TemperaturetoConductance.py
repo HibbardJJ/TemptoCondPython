@@ -13,6 +13,7 @@ import shutil
 import collections
 import numpy as np
 from openpyxl import *
+from openpyxl.utils import coordinate_from_string, column_index_from_string
 
 
 date = input('What is the date of the experiment? Uses spaces to separate the year, month, and date. Format: YYYY MM DD') 
@@ -154,6 +155,7 @@ pixel_list = pixel_list.split()
 
 
 
+
 "Constants"
 
 "Latent Heat of Vaporization for Water"
@@ -204,7 +206,11 @@ for filename in os.listdir('FinalTempImages'):
         conductance_rows = list(csv.reader(Conductance))
         T_e_rows = list(csv.reader(T_ecsvfile))
         for pixel in pixel_list():
-            #Pixel function that turns the Excel values into coordinates based on row and column number
+            xy = coordinate_from_string(pixel)
+            col = column_index_from_string(xy[0])
+            row = xy[1]
+            conductance_at_coordinate = conductance[row][col]
+            T_e_at_coordinate = T_e_rows[row][col]
             
 
                 
